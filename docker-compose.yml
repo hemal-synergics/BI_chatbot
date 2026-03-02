@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  # -----------------------------------------------------
+  # 1. Redis: LangGraph State & Memory 
+  # -----------------------------------------------------
+  redis-memory:
+    image: redis:alpine
+    container_name: bi_redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+ # -----------------------------------------------------
+  # 2. 4B Model: Guardrail, Summarizer, Insights
+
+  vllm-4b-router:
+    image: vllm/vllm-openai:latest
+    container_name: vllm_4b
+    runtime: nvidia 
+    shm_size: '8gb'  # <--- THIS IS THE MAGIC FIX
+    ports:
+      - "8000:8000"
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface 
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+    command: >
+      --model Qwen/Qwen3-4B-AWQ
+      --quantization awq 
+      --gpu-memory-utilization 0.35 
+      --max-model-len 8192
+      --port 8000
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+  # -----------------------------------------------------
+  # 3. 7B Model: Text-to-SQL / Coder Agent [cite: 56]
+  # -----------------------------------------------------
+  vllm-7b-coder:
+    image: vllm/vllm-openai:latest
+    container_name: vllm_7b
+    runtime: nvidia
+    ports:
+      - "8001:8000" # Maps host port 8001 to container port 8000
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+    command: >
+      --model Qwen/Qwen2.5-Coder-7B-Instruct-AWQ
+      --quantization awq 
+      --gpu-memory-utilization 0.5 
+      --max-model-len 8192 
+      --port 8000
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+# -----------------------------------------------------
+  # 4. Elasticsearch: NoSQL DB for Schemas & Data
+  # -----------------------------------------------------
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.2
+    container_name: bi_elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false # Explicitly disable SSL for HTTP
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    restart: unless-stopped
+
+# Don't forget to add the volume block at the very bottom of your compose file:
+volumes:
+  es_data:

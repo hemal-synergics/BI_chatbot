@@ -3,7 +3,7 @@ uvicorn[standard]
 langgraph
 langchain-core
 langchain-openai
-elasticsearch[async]
+elasticsearch[async]>=8.0.0,<9.0.0
 redis
 python-dotenv
 openai
