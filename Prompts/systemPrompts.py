@@ -1,5 +1,5 @@
 def get_guardrail_prompt(current_tab: str) -> str:
-    #Prompt for the 4B model to check if the user query is valid.
+    """Prompt for the 4B model to check if the user query is valid."""
     return f"""You are an AI security guardrail for a data analytics application. 
 The user is currently on the '{current_tab}' dashboard.
 Determine if the user's query is asking for data, metrics, charts, or analytical insights.
@@ -8,14 +8,14 @@ If the user is making off-topic requests (e.g., weather, writing general code, j
 Do not include any markdown, punctuation, or other text. ONLY 'PASS' or 'FAIL'."""
 
 def get_summarizer_prompt(context_summary: str, history_text: str) -> str:
-    #Prompt for the 4B model to summarize chat history every 5 turns.
+    """Prompt for the 4B model to summarize chat history every 5 turns."""
     return f"""Compress the following conversation history into a concise 2-sentence summary. 
 Retain any specific filters, dates, or client names mentioned.
 Previous summary: {context_summary}
 History: {history_text}"""
 
 def get_text_to_sql_prompt(current_tab: str, schemas: str) -> str:
-    #Prompt for the 7B Coder model to generate SQL or Elasticsearch DSL.
+    """Prompt for the 7B Coder model to generate SQL or Elasticsearch DSL."""
     return f"""You are an Expert Database Engineer, Data Analyst.
 
 Your job is to analyze the user's request, select the correct database, choose the best data visualization, and generate the appropriate query.
@@ -32,13 +32,19 @@ Analyze the user's request and strictly follow ONE of these three paths.
 PATH 1: SUCCESS (Clear & Solvable)
 - Identify which database contains the required information based on the descriptions.
 - Put the exact name of the chosen database in "db_selected".
+- Determine the correct "data_type" and generate the appropriate query:
+  - "metric": If the user wants a single number/count (e.g., "Total sales"). 
+    -> MUST use an Aggregation query (ES: `aggs` with `"size": 0`, SQL: `COUNT()`, `SUM()`).
+  - "table": If the user wants a list of records (e.g., "Show the last 10 errors"). 
+    -> MUST use a standard match/select query. Do NOT use aggregations.
+  - "chart": If the user wants grouped data, trends, or comparisons (e.g., "Errors by agent"). 
+    -> MUST use an Aggregation query (ES: `aggs` with buckets and `"size": 0`, SQL: `GROUP BY`).
+- CRITICAL DATA CAPPING: To prevent system overload, you MUST cap the records returned to a maximum of 300.
+  - If the selected DB is Elasticsearch/OpenSearch: You MUST add `"size": 300` at the root of your JSON DSL query for "table" data.
+  - If the selected DB is Apache Parquet/SQL: You MUST append `LIMIT 300` to the end of your SQL query string for "table" data.
 - Generate the query using the correct dialect:
   - If the selected DB is Elasticsearch/OpenSearch: Write a raw JSON DSL query.
   - If the selected DB is Apache Parquet/SQL: Write a raw standard SQL query string.
-- Determine the correct "data_type":
-  - "metric": If the user wants a single number/count (e.g., "Total sales").
-  - "table": If the user wants a list of records (e.g., "Show the last 10 errors").
-  - "chart": If the user wants grouped data, trends, or comparisons (e.g., "Errors by agent").
 - If "data_type" is "chart", you MUST select the best "chart_type":
   - "line" or "area": For trends over time (e.g., "sales over the last 6 months").
   - "bar": For comparing discrete categories (e.g., "tickets by agent").
@@ -74,7 +80,7 @@ Use EXACTLY this structure:
 }}"""
 
 def get_insights_prompt(user_query: str, data_payload: str) -> str:
-    #Prompt for the 4B model to generate analytical insights from graph data.
+    """Prompt for the 4B model to generate analytical insights from graph data."""
     return f"""You are an Expert Data Analyst.
 The user asked the following question: "{user_query}"
 

@@ -1,0 +1,52 @@
+import asyncio
+from langgraph.checkpoint.redis.aio import AsyncRedisSaver
+from Agents.agent_core import create_bi_graph
+
+async def seed_redis_memory():
+    print("🔌 Connecting to Redis at localhost:6379...")
+    
+    # Initialize the LangGraph Redis checkpointer using an async context manager
+    async with AsyncRedisSaver.from_conn_info(host="localhost", port=6379) as checkpointer:
+        print("✅ Connected to Redis checkpointer.")
+        
+        # Compile the graph from our agent_core Canvas, attaching the memory
+        bi_app = create_bi_graph(checkpointer=checkpointer)
+        
+        # Define a session ID (LangGraph uses this as the 'thread_id' to isolate memory)
+        session_id = "test_session_001"
+        config = {"configurable": {"thread_id": session_id}}
+        
+        # ==========================================
+        # 1. Define the Seed Data
+        # ==========================================
+        seed_state = {
+            "session_id": session_id,
+            "current_tab": "call log", # Setting the topic_selected
+            "turn_count": 4,           # Artificially set to 4 to test summarization soon
+            "context_summary": "The user is analyzing the SEA ticket activity log.",
+            "chat_history": [
+                {"role": "user", "content": "How many tickets did Santosh handle?"},
+                {"role": "assistant", "content": "[Generated metric visualization for the user]"}
+            ]
+        }
+        
+        print(f"🌱 Injecting seed data for session: '{session_id}'...")
+        # Use aupdate_state to manually write to Redis without running the nodes
+        await bi_app.aupdate_state(config, seed_state)
+        
+        # ==========================================
+        # 2. Verify the Data was Saved
+        # ==========================================
+        print("🔍 Fetching state back from Redis to verify...")
+        saved_snapshot = await bi_app.aget_state(config)
+        saved_data = saved_snapshot.values
+        
+        print("\n=== Data Successfully Retrieved from Redis ===")
+        print(f"Session ID     : {saved_data.get('session_id')}")
+        print(f"Topic Selected : {saved_data.get('current_tab')}")
+        print(f"Turn Count     : {saved_data.get('turn_count')}")
+        print(f"Summary        : {saved_data.get('context_summary')}")
+        print(f"Chat History   : {len(saved_data.get('chat_history', []))} messages found.")
+        print("============================================\n")
+if __name__ == "__main__":
+    asyncio.run(seed_redis_memory())

@@ -7,3 +7,6 @@ elasticsearch[async]>=8.0.0,<9.0.0
 redis
 python-dotenv
 openai
+pydantic
+duckdb
+langgraph-checkpoint-redis
